@@ -1,17 +1,17 @@
 ---
-title: FTC机器人：自动阶段实现异步执行底盘与其它部件的控制
-published: 2024-11-28
+title: FTC机器人：自动阶段的异步控制
+published: 2025-01-20
 description: '在参与FTC机器人比赛中，自动阶段有大量需要底盘与其它部件的独立运行，通过异步可以较好的处理这种情况'
 image: ''
 tags: [FTC Robotic, Java]
-category: 'FTC'
+category: '记录'
 draft: false 
 lang: ''
 ---
 
-在和多线程斗智斗勇多次无果后，选择使用一种较为传统的并发方法来解决机器人自动阶段手脚独立运行的任务
+在和多线程斗智斗勇多次无果后，选择使用异步来解决机器人自动阶段手脚独立运行的任务
 
-这个思路我最早在FTCLib上看到，但是由于一身反骨（？，我不打算直接套用这个包（主要是因为兼容起来太烦了），决定自己搓一个非多线程的并发框架
+这个思路我最早在FTCLib上看到，但是由于一身反骨（？，我不打算直接套用这个包（主要是因为兼容起来太烦了），决定自己搓一个异步框架
 
 大致的思路是：把自动阶段所有会被调用的方法拆分为：
 
@@ -21,9 +21,9 @@ lang: ''
 
 + 结束（循环后）：finish
 
-+ 继续循环的条件（或者 !跳出循环的条件)：hasNext
++ 继续循环的条件（或者 !跳出循环的条件）：hasNext
 
-并在自动阶段的代码中，只使用一个循环，来控制所有这些任务，来实现不阻塞任何一个“进程”
+并在自动阶段的代码中，只使用一个循环，来控制所有这些任务，来实现无阻塞的执行多个任务
 
 于是，写了一个Command接口
 
@@ -41,12 +41,12 @@ public interface Command {
 
 接着，我通过两种CommandGroup来控制这些Command的执行：
 
-+ ParallelCommandGroup: 同时执行group中的所有命令
-+ SequentialCommandGroup: 依次执行group中的命令
++ ParallelCommandGroup(Command... commands): 同时执行commands中的所有命令
++ SequentialCommandGroup(Command... commands): 依次执行commands中的命令
 
-这些CommandGroup都是实现了Command接口的抽象类，因此可以反复套娃（理论上
+这些CommandGroup都是实现了Command接口的类，因此可以反复套娃（理论上
 
-可以通过Parallel嵌套Sequential来实现类似两个“进程”的效果。此外，如果在Parallel外面套上一层Sequential的话，可以等两个并行Command都结束了之后执行下一个CommandGroup，实现类似await的功能。
+可以通过Parallel嵌套Sequential来实现类似两个“进程”的效果（就是异步）。此外，如果在Parallel外面套上一层Sequential的话，可以等两个并发Command都结束了之后执行下一个CommandGroup，实现类似await的功能。
 
 ```java
 ParallelCommandGroup cmd1 = new ParallelCommandGroup(
@@ -63,7 +63,10 @@ ParallelCommandGroup cmd1 = new ParallelCommandGroup(
         );
 ```
 
-这样，可以用流程图先画出命令执行的先后顺序（以及哪些需要并行），再直接套用到Parallel和Sequential中
+这样，可以用流程图先画出命令执行的先后顺序（以及哪些需要并发执行），再直接套用到Parallel和Sequential中
+
+> A -> B -> C -> ...</br>
+> &nbsp;&nbsp;`-> D -> E -> ...
 
 
 以下是我对这些框架的实现：
